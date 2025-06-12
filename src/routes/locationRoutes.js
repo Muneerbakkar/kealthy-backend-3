@@ -14,6 +14,8 @@ const {
   getExpiringWithinFourDays,
   getExpiringWithinOneMonth,
   getTotalExpiringCount,
+  getExpiringWithinThreeMonth,
+  getExpiringWithinThreeDays,
 } = require("../controllers/locationController");
 
 const router = express.Router();
@@ -54,9 +56,11 @@ router.get("/", getLocationsByDate);
 
 router.get('/count',    getTotalExpiringCount);
 
-router.get("/expiring-in-4-days", getExpiringWithinFourDays);
+router.get("/expiring-in-3-days",   getExpiringWithinThreeDays);
 
 router.get("/expiring-in-1-month", getExpiringWithinOneMonth);
+
+router.get('/expiring-in-3-month', getExpiringWithinThreeMonth);
 
 // 8) Single‑EAN lookup (Zone 1 filtered in your original getLocationByEAN)
 //    GET /api/location/:ean

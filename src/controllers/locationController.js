@@ -357,53 +357,72 @@ const searchLocations = async (req, res) => {
   }
 };
 
+// controllers/locationController.js
+
 const getTotalExpiringCount = async (req, res) => {
   try {
     const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
 
-    // build your two targets
-    const fourDaysOut = new Date(now);
-    fourDaysOut.setDate(now.getDate() + 4);
-    fourDaysOut.setHours(23, 59, 59, 999);
+    // helper to get "end of day" cut-offs
+    const cutoff = (unit, amount) => {
+      const d = new Date(startOfToday);
+      if (unit === "days")   d.setDate(d.getDate() + amount);
+      if (unit === "months") d.setMonth(d.getMonth() + amount);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    };
 
-    const oneMonthOut = new Date(now);
-    oneMonthOut.setMonth(now.getMonth() + 1);
-    oneMonthOut.setHours(23, 59, 59, 999);
+    const threeDaysOut   = cutoff("days",   3);
+    const oneMonthOut    = cutoff("months", 1);
+    const threeMonthsOut = cutoff("months", 3);
 
-    // aggregate: unwind batches, then match either perishable ≤4d or non-perishable ≤1m
-    const [{ count = 0 } = {}] = await Location.aggregate([
-      { $unwind: '$batches' },
+    const pipeline = [
+      { $unwind: "$batches" },
       {
         $match: {
           $or: [
+            // perishable within 3 days
             {
               perishable: true,
-              'batches.expiryDate': { $gte: now, $lte: fourDaysOut }
+              "batches.expiryDate": { $gte: now, $lte: threeDaysOut }
             },
+            // non-perishable within 1 month
             {
               perishable: false,
-              'batches.expiryDate': { $gte: now, $lte: oneMonthOut }
+              "batches.expiryDate": { $gte: now, $lte: oneMonthOut }
+            },
+            // non-perishable between 1 and 3 months
+            {
+              perishable: false,
+              "batches.expiryDate": { $gt: oneMonthOut, $lte: threeMonthsOut }
             }
           ]
         }
       },
-      { $count: 'count' }
-    ]);
+      // collapse all matching batches down to one doc per product (by ean)
+      { $group: { _id: "$ean" } },
+      // count how many unique products we have
+      { $count: "count" }
+    ];
 
-    return res.status(200).json({ count });
-  } catch (error) {
-    console.error("Error fetching total expiring count:", error);
-    return res
-      .status(500)
-      .json({ error: "Server error fetching total expiring count" });
+    const [out] = await Location.aggregate(pipeline);
+    return res.json({ count: out?.count || 0 });
+  } catch (err) {
+    console.error("Error fetching expiring count:", err);
+    return res.status(500).json({ error: "Server error fetching count" });
   }
 };
 
-const getExpiringWithinFourDays = async (req, res) => {
+
+const getExpiringWithinThreeDays = async (req, res) => {
   try {
     const now = new Date();
+
+    // 3 days out, end of day
     const target = new Date(now);
-    target.setDate(target.getDate() + 4);
+    target.setDate(now.getDate() + 3);
     target.setHours(23, 59, 59, 999);
 
     const results = await Location.aggregate([
@@ -430,10 +449,10 @@ const getExpiringWithinFourDays = async (req, res) => {
 
     return res.status(200).json(results);
   } catch (error) {
-    console.error("Error fetching expiring products:", error);
+    console.error("Error fetching expiring-in-3-days products:", error);
     return res
       .status(500)
-      .json({ error: "Server error fetching expiring products" });
+      .json({ error: "Server error fetching expiring-in-3-days products" });
   }
 };
 
@@ -475,7 +494,56 @@ const getExpiringWithinOneMonth = async (req, res) => {
   }
 };
 
+const getExpiringWithinThreeMonth = async (req, res) => {
+  try {
+    const now = new Date();
 
+    // Compute 2 months from now (start of that day)
+    const start = new Date(now);
+    start.setMonth(start.getMonth() + 2);
+    start.setHours(0, 0, 0, 0);
+
+    // Compute 3 months from now (end of that day)
+    const end = new Date(now);
+    end.setMonth(end.getMonth() + 3);
+    end.setHours(23, 59, 59, 999);
+
+    const results = await Location.aggregate([
+      // only non-perishable
+      { $match: { perishable: false } },
+
+      // unwind each batch
+      { $unwind: "$batches" },
+
+      // only those expiring between start and end
+      {
+        $match: {
+          "batches.expiryDate": {
+            $gte: start,
+            $lte: end,
+          },
+        },
+      },
+
+      // project the shape you want
+      {
+        $project: {
+          _id: 0,
+          ean: 1,
+          name: 1,
+          batch: "$batches",
+        },
+      },
+    ]);
+
+    return res.status(200).json(results);
+  } catch (error) {
+    console.error("Error fetching expiring-2-to-3-month products:", error);
+    return res
+      .status(500)
+      .json({ error: "Server error fetching expiring-2-to-3-month products" });
+  }
+};
 
 module.exports = {
   getAllLocations,
@@ -490,6 +558,7 @@ module.exports = {
   updateLocationById,
   searchLocations,
   getTotalExpiringCount,
-  getExpiringWithinFourDays,
+  getExpiringWithinThreeDays,
   getExpiringWithinOneMonth,
+  getExpiringWithinThreeMonth,
 };
