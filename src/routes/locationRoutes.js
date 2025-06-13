@@ -11,7 +11,6 @@ const {
   transferQuantity,
   updateLocationById,
   searchLocations,
-  getExpiringWithinFourDays,
   getExpiringWithinOneMonth,
   getTotalExpiringCount,
   getExpiringWithinThreeMonth,
@@ -19,6 +18,7 @@ const {
 } = require("../controllers/locationController");
 
 const router = express.Router();
+
 
 // 1) Paginated & searchable Zone 2 stock
 //    GET /api/location/zone2?page=1&limit=10&search=foo
@@ -54,18 +54,20 @@ router.patch(
 //    GET /api/location?date=YYYY-MM-DD
 router.get("/", getLocationsByDate);
 
-router.get('/count',    getTotalExpiringCount);
+router.get("/count", getTotalExpiringCount);
 
-router.get("/expiring-in-3-days",   getExpiringWithinThreeDays);
+router.get("/expiring-in-3-days", getExpiringWithinThreeDays);
 
 router.get("/expiring-in-1-month", getExpiringWithinOneMonth);
 
-router.get('/expiring-in-3-month', getExpiringWithinThreeMonth);
+router.get("/expiring-in-3-month", getExpiringWithinThreeMonth);
 
 // 8) Single‑EAN lookup (Zone 1 filtered in your original getLocationByEAN)
 //    GET /api/location/:ean
 router.get("/:ean", getLocationByEAN);
 
 router.put("/:id", updateLocationById);
+
+
 
 module.exports = router;

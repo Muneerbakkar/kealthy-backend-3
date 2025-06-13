@@ -357,64 +357,91 @@ const searchLocations = async (req, res) => {
   }
 };
 
-// controllers/locationController.js
-
 const getTotalExpiringCount = async (req, res) => {
   try {
     const now = new Date();
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
 
-    // helper to get "end of day" cut-offs
-    const cutoff = (unit, amount) => {
+    const cutoff = (unit, amt) => {
       const d = new Date(startOfToday);
-      if (unit === "days")   d.setDate(d.getDate() + amount);
-      if (unit === "months") d.setMonth(d.getMonth() + amount);
+      if (unit === "days") d.setDate(d.getDate() + amt);
+      if (unit === "months") d.setMonth(d.getMonth() + amt);
       d.setHours(23, 59, 59, 999);
       return d;
     };
 
-    const threeDaysOut   = cutoff("days",   3);
-    const oneMonthOut    = cutoff("months", 1);
+    const threeDaysOut = cutoff("days", 3);
+    const oneMonthOut = cutoff("months", 1);
     const threeMonthsOut = cutoff("months", 3);
 
-    const pipeline = [
-      { $unwind: "$batches" },
-      {
-        $match: {
-          $or: [
-            // perishable within 3 days
-            {
-              perishable: true,
-              "batches.expiryDate": { $gte: now, $lte: threeDaysOut }
-            },
-            // non-perishable within 1 month
-            {
-              perishable: false,
-              "batches.expiryDate": { $gte: now, $lte: oneMonthOut }
-            },
-            // non-perishable between 1 and 3 months
-            {
-              perishable: false,
-              "batches.expiryDate": { $gt: oneMonthOut, $lte: threeMonthsOut }
-            }
-          ]
-        }
-      },
-      // collapse all matching batches down to one doc per product (by ean)
-      { $group: { _id: "$ean" } },
-      // count how many unique products we have
-      { $count: "count" }
-    ];
+    const facets = {
+      expiringIn3Days: [
+        { $unwind: "$batches" },
+        {
+          $match: {
+            perishable: true,
+            "batches.expiryDate": { $gte: now, $lte: threeDaysOut },
+          },
+        },
+        // 1) collapse same batch once per product name
+        {
+          $group: {
+            _id: { name: "$name", batchId: "$batches._id" },
+          },
+        },
+        // 2) collapse to one per name
+        {
+          $group: {
+            _id: "$_id.name",
+          },
+        },
+        { $count: "count" },
+      ],
 
-    const [out] = await Location.aggregate(pipeline);
-    return res.json({ count: out?.count || 0 });
+      expiringIn1Month: [
+        { $unwind: "$batches" },
+        {
+          $match: {
+            perishable: false,
+            "batches.expiryDate": { $gte: now, $lte: oneMonthOut },
+          },
+        },
+        { $group: { _id: { name: "$name", batchId: "$batches._id" } } },
+        { $group: { _id: "$_id.name" } },
+        { $count: "count" },
+      ],
+
+      expiringIn3Months: [
+        { $unwind: "$batches" },
+        {
+          $match: {
+            perishable: false,
+            "batches.expiryDate": { $gt: oneMonthOut, $lte: threeMonthsOut },
+          },
+        },
+        { $group: { _id: { name: "$name", batchId: "$batches._id" } } },
+        { $group: { _id: "$_id.name" } },
+        { $count: "count" },
+      ],
+    };
+
+    const [results = {}] = await Location.aggregate([{ $facet: facets }]);
+
+    const in3Days = results.expiringIn3Days?.[0]?.count || 0;
+    const in1Month = results.expiringIn1Month?.[0]?.count || 0;
+    const in3Months = results.expiringIn3Months?.[0]?.count || 0;
+
+    console.log(`Expiring in 3 days:   ${in3Days}`);
+    console.log(`Expiring in 1 month:  ${in1Month}`);
+    console.log(`Expiring in 3 months: ${in3Months}`);
+
+    return res.json({ in3Days, in1Month, in3Months });
   } catch (err) {
-    console.error("Error fetching expiring count:", err);
-    return res.status(500).json({ error: "Server error fetching count" });
+    console.error("Error fetching expiring counts:", err);
+    return res.status(500).json({ error: "Server error fetching counts" });
   }
 };
-
 
 const getExpiringWithinThreeDays = async (req, res) => {
   try {
