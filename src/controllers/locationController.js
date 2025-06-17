@@ -357,6 +357,8 @@ const searchLocations = async (req, res) => {
   }
 };
 
+console.log("hello");
+
 const getTotalExpiringCount = async (req, res) => {
   try {
     const now = new Date();
