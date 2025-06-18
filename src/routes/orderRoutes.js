@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require("cors");
 const {
   getCurrentWeekOrders,
   getOrdersByDate,
@@ -10,6 +11,9 @@ const {
 } = require("../controllers/orderController");
 
 const router = express.Router();
+
+// Apply CORS headers specifically here if needed
+// router.use(cors({ origin: "https://kealthy-inventory.netlify.app", credentials: true }));
 
 // GET /api/orders/current-week
 router.get("/current-week", getCurrentWeekOrders);
