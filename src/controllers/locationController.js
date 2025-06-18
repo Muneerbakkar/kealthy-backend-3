@@ -357,8 +357,6 @@ const searchLocations = async (req, res) => {
   }
 };
 
-console.log("hello from locationController.js");
-
 const getTotalExpiringCount = async (req, res) => {
   try {
     const now = new Date();
@@ -377,66 +375,79 @@ const getTotalExpiringCount = async (req, res) => {
     const oneMonthOut = cutoff("months", 1);
     const threeMonthsOut = cutoff("months", 3);
 
-    const facets = {
-      expiringIn3Days: [
-        { $unwind: "$batches" },
-        {
-          $match: {
-            perishable: true,
-            "batches.expiryDate": { $gte: now, $lte: threeDaysOut },
+    // ✅ Step 1: Get names expiring in 1 month (to exclude from 3-month)
+    const oneMonthProducts = await Location.aggregate([
+      { $match: { perishable: false } },
+      { $unwind: "$batches" },
+      {
+        $match: {
+          "batches.expiryDate": { $gte: now, $lte: oneMonthOut },
+        },
+      },
+      { $group: { _id: "$name" } },
+    ]);
+
+    const oneMonthProductNames = oneMonthProducts.map((p) => p._id);
+
+    // ✅ Step 2: Get 3-month product list excluding 1-month
+    const threeMonthProducts = await Location.aggregate([
+      { $match: { perishable: false } },
+      { $unwind: "$batches" },
+      {
+        $match: {
+          "batches.expiryDate": {
+            $gt: oneMonthOut,
+            $lte: threeMonthsOut,
           },
         },
-        // 1) collapse same batch once per product name
-        {
-          $group: {
-            _id: { name: "$name", batchId: "$batches._id" },
-          },
+      },
+      {
+        $group: {
+          _id: "$name",
+          ean: { $first: "$ean" },
+          name: { $first: "$name" },
         },
-        // 2) collapse to one per name
-        {
-          $group: {
-            _id: "$_id.name",
-          },
+      },
+      {
+        $match: {
+          _id: { $nin: oneMonthProductNames },
         },
-        { $count: "count" },
-      ],
+      },
+    ]);
 
-      expiringIn1Month: [
-        { $unwind: "$batches" },
-        {
-          $match: {
-            perishable: false,
-            "batches.expiryDate": { $gte: now, $lte: oneMonthOut },
-          },
+    // ✅ Step 3: Other counts using facet
+    const [facetCounts = {}] = await Location.aggregate([
+      {
+        $facet: {
+          expiringIn3Days: [
+            { $match: { perishable: true } },
+            { $unwind: "$batches" },
+            {
+              $match: {
+                "batches.expiryDate": { $gte: now, $lte: threeDaysOut },
+              },
+            },
+            { $group: { _id: "$name" } },
+            { $count: "count" },
+          ],
+          expiringIn1Month: [
+            { $match: { perishable: false } },
+            { $unwind: "$batches" },
+            {
+              $match: {
+                "batches.expiryDate": { $gte: now, $lte: oneMonthOut },
+              },
+            },
+            { $group: { _id: "$name" } },
+            { $count: "count" },
+          ],
         },
-        { $group: { _id: { name: "$name", batchId: "$batches._id" } } },
-        { $group: { _id: "$_id.name" } },
-        { $count: "count" },
-      ],
+      },
+    ]);
 
-      expiringIn3Months: [
-        { $unwind: "$batches" },
-        {
-          $match: {
-            perishable: false,
-            "batches.expiryDate": { $gt: oneMonthOut, $lte: threeMonthsOut },
-          },
-        },
-        { $group: { _id: { name: "$name", batchId: "$batches._id" } } },
-        { $group: { _id: "$_id.name" } },
-        { $count: "count" },
-      ],
-    };
-
-    const [results = {}] = await Location.aggregate([{ $facet: facets }]);
-
-    const in3Days = results.expiringIn3Days?.[0]?.count || 0;
-    const in1Month = results.expiringIn1Month?.[0]?.count || 0;
-    const in3Months = results.expiringIn3Months?.[0]?.count || 0;
-
-    console.log(`Expiring in 3 days:   ${in3Days}`);
-    console.log(`Expiring in 1 month:  ${in1Month}`);
-    console.log(`Expiring in 3 months: ${in3Months}`);
+    const in3Days = facetCounts.expiringIn3Days?.[0]?.count || 0;
+    const in1Month = facetCounts.expiringIn1Month?.[0]?.count || 0;
+    const in3Months = threeMonthProducts.length;
 
     return res.json({ in3Days, in1Month, in3Months });
   } catch (err) {
@@ -449,13 +460,11 @@ const getExpiringWithinThreeDays = async (req, res) => {
   try {
     const now = new Date();
 
-    // 3 days out, end of day
     const target = new Date(now);
     target.setDate(now.getDate() + 3);
     target.setHours(23, 59, 59, 999);
 
     const results = await Location.aggregate([
-      // only perishable products
       { $match: { perishable: true } },
       { $unwind: "$batches" },
       {
@@ -467,11 +476,18 @@ const getExpiringWithinThreeDays = async (req, res) => {
         },
       },
       {
+        $group: {
+          _id: "$ean",
+          name: { $first: "$name" },
+          batches: { $push: "$batches" },
+        },
+      },
+      {
         $project: {
           _id: 0,
-          ean: 1,
+          ean: "$_id",
           name: 1,
-          batch: "$batches",
+          batches: 1,
         },
       },
     ]);
@@ -493,7 +509,6 @@ const getExpiringWithinOneMonth = async (req, res) => {
     target.setHours(23, 59, 59, 999);
 
     const results = await Location.aggregate([
-      // only non-perishable products
       { $match: { perishable: false } },
       { $unwind: "$batches" },
       {
@@ -505,11 +520,18 @@ const getExpiringWithinOneMonth = async (req, res) => {
         },
       },
       {
+        $group: {
+          _id: "$ean",
+          name: { $first: "$name" },
+          batches: { $push: "$batches" },
+        },
+      },
+      {
         $project: {
           _id: 0,
-          ean: 1,
+          ean: "$_id",
           name: 1,
-          batch: "$batches",
+          batches: 1,
         },
       },
     ]);
@@ -527,40 +549,39 @@ const getExpiringWithinThreeMonth = async (req, res) => {
   try {
     const now = new Date();
 
-    // Compute 2 months from now (start of that day)
-    const start = new Date(now);
-    start.setMonth(start.getMonth() + 2);
-    start.setHours(0, 0, 0, 0);
+    const oneMonthOut = new Date(now);
+    oneMonthOut.setMonth(now.getMonth() + 1);
+    oneMonthOut.setHours(23, 59, 59, 999);
 
-    // Compute 3 months from now (end of that day)
-    const end = new Date(now);
-    end.setMonth(end.getMonth() + 3);
-    end.setHours(23, 59, 59, 999);
+    const threeMonthsOut = new Date(now);
+    threeMonthsOut.setMonth(now.getMonth() + 3);
+    threeMonthsOut.setHours(23, 59, 59, 999);
 
     const results = await Location.aggregate([
-      // only non-perishable
       { $match: { perishable: false } },
-
-      // unwind each batch
       { $unwind: "$batches" },
-
-      // only those expiring between start and end
       {
         $match: {
           "batches.expiryDate": {
-            $gte: start,
-            $lte: end,
+            $gt: oneMonthOut,
+            $lte: threeMonthsOut,
           },
         },
       },
-
-      // project the shape you want
+      {
+        $group: {
+          _id: "$name",
+          ean: { $first: "$ean" },
+          name: { $first: "$name" },
+          batches: { $push: "$batches" }, // ✅ collect all matched batches
+        },
+      },
       {
         $project: {
           _id: 0,
           ean: 1,
           name: 1,
-          batch: "$batches",
+          batches: 1,
         },
       },
     ]);

@@ -6,11 +6,10 @@ const {
   getOrdersByHour,
   getTopOrderTimes,
   getProductSummary,
+  transferSubscriptionToOrder,
 } = require("../controllers/orderController");
 
 const router = express.Router();
-
-console.log("Order routes are being mounted");
 
 // GET /api/orders/current-week
 router.get("/current-week", getCurrentWeekOrders);
@@ -21,5 +20,6 @@ router.get("/products/top", getTopProducts);
 router.get("/orders-by-hour", getOrdersByHour);
 router.get('/top-times',  getTopOrderTimes);
 router.get('/products/summary', getProductSummary);
+router.get("/generate-orders-from-subscription", transferSubscriptionToOrder);
 
 module.exports = router;
