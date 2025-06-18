@@ -23,9 +23,34 @@ connectDB();
 const app = express();
 app.use(express.json());
 
+// ✅ Allowed origins
+const allowedOrigins = [
+  "http://localhost:5174",
+  "https://kealthy-inventory.netlify.app",
+];
 
-app.use(cors({ origin: "*", credentials: true }));
+// ✅ Proper CORS config
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+}));
 
+// ✅ Set headers explicitly (optional but recommended)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  next();
+});
 
 // Routes
 app.use("/api/orders", orderRoutes);
