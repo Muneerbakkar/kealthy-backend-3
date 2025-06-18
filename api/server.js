@@ -13,7 +13,7 @@ const packingRoutes = require("../src/routes/packingRoutes");
 const rackRoutes = require("../src/routes/rackRoutes");
 const inboundRecordsRouter = require("../src/routes/inboundRecords");
 const { errorHandler } = require("../src/middleware/errorMiddleware");
-const startSubscriptionCron = require("../src/cron/subscription");
+// const startSubscriptionCron = require("../src/cron/subscription");
 
 dotenv.config();
 
@@ -68,7 +68,7 @@ app.use("/api/inbound-records", inboundRecordsRouter);
 app.use(errorHandler);
 
 // Start Cron Job
-startSubscriptionCron();
+// startSubscriptionCron();
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -12,9 +12,6 @@ const {
 
 const router = express.Router();
 
-// Apply CORS headers specifically here if needed
-// router.use(cors({ origin: "https://kealthy-inventory.netlify.app", credentials: true }));
-
 // GET /api/orders/current-week
 router.get("/current-week", getCurrentWeekOrders);
 
@@ -24,6 +21,6 @@ router.get("/products/top", getTopProducts);
 router.get("/orders-by-hour", getOrdersByHour);
 router.get('/top-times',  getTopOrderTimes);
 router.get('/products/summary', getProductSummary);
-router.get("/generate-orders-from-subscription", transferSubscriptionToOrder);
+// router.get("/generate-orders-from-subscription", transferSubscriptionToOrder);
 
 module.exports = router;
