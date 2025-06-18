@@ -13,7 +13,6 @@ const packingRoutes = require("../src/routes/packingRoutes");
 const rackRoutes = require("../src/routes/rackRoutes");
 const inboundRecordsRouter = require("../src/routes/inboundRecords");
 const { errorHandler } = require("../src/middleware/errorMiddleware");
-// Cron Job
 const startSubscriptionCron = require("../src/cron/subscription");
 
 dotenv.config();
@@ -21,54 +20,36 @@ dotenv.config();
 // Connect to MongoDB
 connectDB();
 
-// Optional: Seed Rack Locations if environment variable is set
-// if (process.env.SEED_RACK_LOCATIONS === "true") {
-//   const RackLocation = require("../src/models/RackLocation");
-//   const seedRackLocations = async () => {
-//     try {
-//       const count = await RackLocation.countDocuments();
-//       if (count === 0) {
-//         console.log("Seeding rack locations...");
-//         const locations = [];
-//         // Create a single rack (Rack 1) with 4 shelves and 4 bins each
-//         for (let shelf = 1; shelf <= 4; shelf++) {
-//           for (let bin = 1; bin <= 4; bin++) {
-//             locations.push({ rack: 1, shelf, bin, booked: false });
-//           }
-//         }
-//         await RackLocation.insertMany(locations);
-//         console.log("Rack locations populated.");
-//       } else {
-//         console.log("Rack locations already seeded.");
-//       }
-//     } catch (err) {
-//       console.error("Error seeding rack locations:", err);
-//     }
-//   };
-//   seedRackLocations();
-// }
-
 const app = express();
-
-// Middleware
 app.use(express.json());
-// app.use(cors());
 
-app.use(
-  cors({
-    origin: ["https://kealthy-inventory.netlify.app"],
-    credentials: true,
-  })
-);
+// ✅ Allowed origins
+const allowedOrigins = [
+  "http://localhost:5174",
+  "https://kealthy-inventory.netlify.app",
+];
 
+// ✅ Proper CORS config
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+}));
 
-// ✅ Handle preflight (OPTIONS) for all routes
-app.options("*", (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "https://kealthy-inventory.netlify.app");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  return res.status(200).end();
+// ✅ Set headers explicitly (optional but recommended)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  next();
 });
 
 // Routes
@@ -86,9 +67,8 @@ app.use("/api/inbound-records", inboundRecordsRouter);
 // Error Handling Middleware
 app.use(errorHandler);
 
+// Start Cron Job
+startSubscriptionCron();
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-// Start Cron Job
-startSubscriptionCron();
