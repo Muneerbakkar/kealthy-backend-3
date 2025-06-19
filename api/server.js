@@ -25,20 +25,27 @@ const app = express();
 // Middleware
 app.use(express.json());
 
-// 🔐 Manually handle CORS for frontend on Netlify & local dev
+// ✅ Enhanced CORS Handling (for both local and Netlify frontend)
+const allowedOrigins = [
+  "http://localhost:5174",
+  "https://kealthy-inventory.netlify.app",
+];
+
 app.use((req, res, next) => {
-  const allowedOrigins = [
-    "http://localhost:5174",
-    "https://kealthy-inventory.netlify.app"
-  ];
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
 
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
 
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
@@ -64,7 +71,9 @@ app.use(errorHandler);
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`✅ Server running on port ${PORT}`)
+);
 
-// Start Cron
+// Start Cron Job
 startSubscriptionCron();
