@@ -1,5 +1,4 @@
 const express = require("express");
-const cors = require("cors");
 const {
   getCurrentWeekOrders,
   getOrdersByDate,
@@ -21,6 +20,6 @@ router.get("/products/top", getTopProducts);
 router.get("/orders-by-hour", getOrdersByHour);
 router.get('/top-times',  getTopOrderTimes);
 router.get('/products/summary', getProductSummary);
-// router.get("/generate-orders-from-subscription", transferSubscriptionToOrder);
+router.get("/generate-orders-from-subscription", transferSubscriptionToOrder);
 
 module.exports = router;

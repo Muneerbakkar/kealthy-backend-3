@@ -13,7 +13,9 @@ const packingRoutes = require("../src/routes/packingRoutes");
 const rackRoutes = require("../src/routes/rackRoutes");
 const inboundRecordsRouter = require("../src/routes/inboundRecords");
 const { errorHandler } = require("../src/middleware/errorMiddleware");
-// const startSubscriptionCron = require("../src/cron/subscription");
+
+// Cron Job
+const startSubscriptionCron = require("../src/cron/subscription");
 
 dotenv.config();
 
@@ -21,36 +23,23 @@ dotenv.config();
 connectDB();
 
 const app = express();
+
+// Middleware
 app.use(express.json());
 
-// ✅ Allowed origins
-const allowedOrigins = [
-  "http://localhost:5174",
-  "https://kealthy-inventory.netlify.app",
-];
+// ✅ Proper CORS setup for localhost + Netlify + preflight
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5174",
+      "https://kealthy-inventory.netlify.app",
+    ],
+    credentials: true,
+  })
+);
 
-// ✅ Proper CORS config
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error("Not allowed by CORS"));
-  },
-  credentials: true,
-}));
-
-// ✅ Set headers explicitly (optional but recommended)
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  next();
-});
+// ✅ Handle OPTIONS preflight requests for all routes
+app.options("*", cors());
 
 // Routes
 app.use("/api/orders", orderRoutes);
@@ -67,8 +56,8 @@ app.use("/api/inbound-records", inboundRecordsRouter);
 // Error Handling Middleware
 app.use(errorHandler);
 
-// Start Cron Job
-// startSubscriptionCron();
-
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// Start Cron Job
+startSubscriptionCron();
