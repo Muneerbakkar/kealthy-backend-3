@@ -28,7 +28,7 @@ app.use(express.json());
 // ✅ Enhanced CORS Handling (for both local and Netlify frontend)
 const allowedOrigins = [
   "http://localhost:5174",
-  "https://kealthy-inventory-2.netlify.app",
+  "https://kealthy-inventory-2.netlify.app/",
 ];
 
 app.use((req, res, next) => {
