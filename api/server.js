@@ -22,39 +22,18 @@ connectDB();
 
 const app = express();
 
-// Middleware
+// Middleware to parse JSON
 app.use(express.json());
 
-// ✅ Enhanced CORS Handling (for both local and Netlify frontend)
-const allowedOrigins = [
-  "http://localhost:5174",
-  "https://kealthy-inventory-2.netlify.app/",
-];
+// ✅ CORS setup (safe for Netlify, localhost, etc.)
+app.use(
+  cors({
+    origin: true, // Reflects the request origin
+    credentials: true, // Enables cookies and headers
+  })
+);
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, OPTIONS"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
-
-// Routes
+// API Routes
 app.use("/api/orders", orderRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/inventory", inventoryRoutes);
@@ -66,14 +45,14 @@ app.use("/api/packing", packingRoutes);
 app.use("/api/rack", rackRoutes);
 app.use("/api/inbound-records", inboundRecordsRouter);
 
-// Error Handler
+// Global Error Handler
 app.use(errorHandler);
 
-// Start Server
+// Start Express Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () =>
-  console.log(`✅ Server running on port ${PORT}`)
-);
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+});
 
-// Start Cron Job
+// Start the Subscription Cron Job
 startSubscriptionCron();
