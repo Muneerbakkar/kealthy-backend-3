@@ -418,8 +418,12 @@ const transferSubscriptionToOrder = async (req, res) => {
           : 0;
 
         const deliveryFee = sub.deliveryFee || 0;
-        const handlingFee = 5; // ✅ Static handling fee
+        const handlingFee = 5;
         const totalToPay = perDayAmount + deliveryFee + handlingFee;
+
+        // ✅ Clean subscription quantity: remove non-digits and convert to int
+        const rawQty = sub.subscriptionQty || "1";
+        const cleanQty = parseInt(rawQty.replace(/[^\d]/g, "")) || 1;
 
         const order = {
           DA: sub.DA || "Waiting",
@@ -429,7 +433,7 @@ const transferSubscriptionToOrder = async (req, res) => {
           cookinginstrcutions: "Don't send cutleries, tissues, straws, etc.",
           createdAt: today.toISOString(),
           deliveryFee,
-          handlingFee, // ✅ Added handling fee field
+          handlingFee,
           deliveryInstructions: sub.deliveryInstructions || "",
           distance: sub.distance || "0.0",
           fcm_token: sub.fcm_token || "",
@@ -438,7 +442,7 @@ const transferSubscriptionToOrder = async (req, res) => {
           orderItems: [
             {
               item_name: sub.productName,
-              item_quantity: sub.subscriptionQty,
+              item_quantity: cleanQty, // ✅ Cleaned & parsed quantity
               item_price: perDayAmount,
               item_ean: sub.item_ean || "",
             },
@@ -468,6 +472,7 @@ const transferSubscriptionToOrder = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
 
 
 module.exports = {
