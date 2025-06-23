@@ -1,13 +1,15 @@
+require("dotenv").config();
 const admin = require("firebase-admin");
-const path = require("path");
-
-// Go two levels up from /src/config to backend/
-const serviceAccount = require(path.join(__dirname, "../../serviceAccountKey.json"));
 
 if (!admin.apps.length) {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+
+  // Fix: Replace escaped newlines with actual newlines
+  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: "https://kealthy-90c55-dd236.firebaseio.com/"
+    databaseURL: "https://kealthy-90c55-dd236.firebaseio.com/",
   });
 }
 

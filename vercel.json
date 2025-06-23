@@ -1,7 +1,15 @@
 {
   "version": 2,
+  "functions": {
+    "api/transfer-subscriptions.js": {
+      "schedule": "* * * * *"
+    }
+  },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api/server.js" }
+    {
+      "source": "/(.*)",
+      "destination": "/api/server.js"
+    }
   ],
   "headers": [
     {
@@ -9,7 +17,7 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "https://kealthy-inventory.netlify.app"
+          "value": "https://kealthy-inventory-2.netlify.app"
         },
         {
           "key": "Access-Control-Allow-Methods",
