@@ -1,10 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/transfer-subscriptions.js": {
-      "schedule": "* * * * *"
-    }
-  },
   "rewrites": [
     {
       "source": "/(.*)",
