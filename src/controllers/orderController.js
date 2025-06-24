@@ -390,6 +390,7 @@ const getProductSummary = async (req, res) => {
   }
 };
 
+
 const transferSubscriptionToOrder = async (req, res) => {
   try {
     const snapshot = await db.ref("subscriptions").once("value");
@@ -466,14 +467,14 @@ const transferSubscriptionToOrder = async (req, res) => {
     });
 
     await Promise.all(tasks);
-    return res.status(200).json({ message: "Orders transferred successfully." });
+    return res
+      .status(200)
+      .json({ message: "Orders transferred successfully." });
   } catch (err) {
     console.error("🔥 Error transferring subscriptions:", err);
     return res.status(500).json({ error: err.message });
   }
 };
-
-
 
 module.exports = {
   getCurrentWeekOrders,

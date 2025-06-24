@@ -12,6 +12,7 @@ const locationRoutes = require("../src/routes/locationRoutes");
 const packingRoutes = require("../src/routes/packingRoutes");
 const rackRoutes = require("../src/routes/rackRoutes");
 const inboundRecordsRouter = require("../src/routes/inboundRecords");
+const lowStockRoutes = require("../src/routes/lowStockRoutes");
 const { errorHandler } = require("../src/middleware/errorMiddleware");
 const startSubscriptionCron = require("../src/cron/subscription");
 
@@ -44,6 +45,7 @@ app.use("/api/location", locationRoutes);
 app.use("/api/packing", packingRoutes);
 app.use("/api/rack", rackRoutes);
 app.use("/api/inbound-records", inboundRecordsRouter);
+app.use("/api/low-stock", lowStockRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
