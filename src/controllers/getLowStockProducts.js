@@ -1,10 +1,18 @@
-// controllers/getLowStockProducts.js
 const Product = require("../models/Product");
 const Location = require("../models/Location");
 
 const getLowStockProducts = async (req, res) => {
   try {
-    const allProducts = await Product.find({});
+    // Fetch everything upfront
+    const [allProducts, allLocations] = await Promise.all([
+      Product.find({}),
+      Location.find({}),
+    ]);
+
+    // Create a map of location data by EAN
+    const locationMap = new Map();
+    allLocations.forEach((loc) => locationMap.set(loc.ean, loc));
+
     const lowStockProducts = [];
 
     for (const product of allProducts) {
@@ -14,10 +22,11 @@ const getLowStockProducts = async (req, res) => {
         0
       );
 
-      const locationDoc = await Location.findOne({ ean });
+      const locationDoc = locationMap.get(ean);
+
       if (
         !locationDoc ||
-        !locationDoc.batches ||
+        !Array.isArray(locationDoc.batches) ||
         locationDoc.batches.length === 0
       )
         continue;
@@ -39,7 +48,7 @@ const getLowStockProducts = async (req, res) => {
       }
     }
 
-    // ✅ Sort by currentStock in ascending order
+    // Sort by current stock ascending
     lowStockProducts.sort((a, b) => a.currentStock - b.currentStock);
 
     return res.status(200).json({
