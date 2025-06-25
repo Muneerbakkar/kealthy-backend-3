@@ -45,6 +45,7 @@ app.use("/api/location", locationRoutes);
 app.use("/api/packing", packingRoutes);
 app.use("/api/rack", rackRoutes);
 app.use("/api/inbound-records", inboundRecordsRouter);
+app.use("/api/inbound", inboundRecordsRouter);
 app.use("/api/low-stock", lowStockRoutes);
 
 // Global Error Handler

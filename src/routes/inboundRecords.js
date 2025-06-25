@@ -1,7 +1,7 @@
 // routes/inboundRecords.js
 
 const express = require("express");
-const { getInboundRecords } = require("../controllers/inboundRecordController");
+const { getInboundRecords, getInboundSummary } = require("../controllers/inboundRecordController");
 const router = express.Router();
 
 
@@ -12,5 +12,6 @@ const router = express.Router();
  *   • end=YYYY-MM-DD
  */
 router.get("/", getInboundRecords);
+router.get("/summary", getInboundSummary);
 
 module.exports = router;

@@ -14,13 +14,11 @@ const buildDateMatchStage = (startDate, endDate) => {
     start = moment(startDate, "DD-MM-YYYY").startOf("day").toDate();
     end = moment(endDate, "DD-MM-YYYY").endOf("day").toDate();
   } else {
-    // Current ISO week boundaries
     const weekStart = moment().startOf("isoWeek");
     const weekEnd = moment().endOf("isoWeek");
     const monthStart = moment().startOf("month");
     const monthEnd = moment().endOf("month");
 
-    // Clip to month
     start = (weekStart.isBefore(monthStart) ? monthStart : weekStart).toDate();
     end = (weekEnd.isAfter(monthEnd) ? monthEnd : weekEnd).toDate();
   }
@@ -54,33 +52,49 @@ const buildDateMatchStage = (startDate, endDate) => {
  */
 const buildItemAggregationStages = () => [
   { $unwind: "$orderItems" },
+
   {
-    $group: {
-      _id: {
-        date: "$date",
-        EAN: "$orderItems.item_EAN",
-        name: "$orderItems.item_name",
-        unitPrice: "$orderItems.item_price",
-      },
-      quantity: { $sum: "$orderItems.item_quantity" },
-      totalPrice: {
-        $sum: {
-          $multiply: ["$orderItems.item_price", "$orderItems.item_quantity"],
+    $addFields: {
+      time: {
+        $dateToString: {
+          format: "%H:%M:%S", // 24-hour format
+          date: "$createdAt",
+          timezone: "Asia/Kolkata", // adjust based on your locale
         },
       },
     },
   },
+
+  {
+    $group: {
+      _id: {
+        date: "$date",
+        time: "$time", // from createdAt
+        name: "$orderItems.item_name",
+        unitPrice: "$orderItems.item_price",
+        EAN: "$orderItems.item_EAN",
+        customer: "$Name",
+        totalAmountToPay: "$totalAmountToPay",
+      },
+      quantity: { $sum: "$orderItems.item_quantity" },
+    },
+  },
+
   {
     $project: {
       _id: 0,
       date: "$_id.date",
+      time: "$_id.time",
       name: "$_id.name",
+      customer: "$_id.customer",
       unitPrice: "$_id.unitPrice",
+      EAN: "$_id.EAN",
       quantity: 1,
-      totalPrice: 1,
+      totalAmountToPay: "$_id.totalAmountToPay",
     },
   },
-  { $sort: { date: 1, name: 1 } },
+
+  { $sort: { date: 1, time: 1, name: 1 } },
 ];
 
 /**
@@ -284,50 +298,55 @@ const getProductSummary = async (req, res) => {
     const dateMatchStage = buildDateMatchStage(startDate, endDate);
 
     const pipeline = [
-      // 1) filter by date
       dateMatchStage,
 
-      // 2) explode each orderItems
-      { $unwind: "$orderItems" },
-
-      // 3) normalize EAN field
       {
         $addFields: {
-          ean: {
-            $ifNull: ["$orderItems.item_EAN", "$orderItems.item_ean"],
+          time24: {
+            $dateToString: {
+              format: "%H:%M:%S",
+              date: "$createdAt",
+              timezone: "Asia/Kolkata",
+            },
           },
         },
       },
 
-      // 4) group by ean/name/price/date/ReceivedCOD
-      {
-        $group: {
-          _id: {
-            ean: "$ean",
-            name: "$orderItems.item_name",
-            price: "$orderItems.item_price",
-            date: "$date",
-            ReceivedCOD: "$ReceivedCOD",
-          },
-          totalQuantity: { $sum: "$orderItems.item_quantity" },
-        },
-      },
-
-      // 5) project fields + compute totalPrice
       {
         $project: {
-          _id: 0,
-          ean: "$_id.ean",
-          name: "$_id.name",
-          price: "$_id.price",
-          date: "$_id.date",
-          ReceivedCOD: "$_id.ReceivedCOD",
-          quantity: "$totalQuantity",
-          totalPrice: { $multiply: ["$totalQuantity", "$_id.price"] },
+          orderId: 1,
+          orderItems: 1,
+          Name: 1,
+          totalAmountToPay: 1,
+          date: 1,
+          time24: 1,
+          ReceivedCOD: 1,
         },
       },
 
-      // 6) lookup stock from locations
+      { $unwind: "$orderItems" },
+
+      {
+        $addFields: {
+          ean: { $ifNull: ["$orderItems.item_EAN", "$orderItems.item_ean"] },
+        },
+      },
+
+      {
+        $project: {
+          orderId: 1,
+          Name: 1,
+          item_name: "$orderItems.item_name",
+          item_price: "$orderItems.item_price",
+          item_quantity: "$orderItems.item_quantity",
+          ean: 1,
+          date: 1,
+          time24: 1,
+          ReceivedCOD: 1,
+          totalAmountToPay: 1,
+        },
+      },
+
       {
         $lookup: {
           from: "locations",
@@ -355,7 +374,6 @@ const getProductSummary = async (req, res) => {
       },
       { $project: { locs: 0 } },
 
-      // 7) lookup netWeight & unit from productCollection
       {
         $lookup: {
           from: "productCollection",
@@ -378,18 +396,23 @@ const getProductSummary = async (req, res) => {
       },
       { $project: { prod: 0 } },
 
-      // 8) sort by quantity desc, then date asc
-      { $sort: { quantity: -1, date: 1 } },
+      { $sort: { date: 1, time24: 1 } },
     ];
 
-    const summary = await Order.aggregate(pipeline);
+    const rawSummary = await Order.aggregate(pipeline);
+
+    // Convert 24hr time to 12hr time in Node.js
+    const summary = rawSummary.map((item) => ({
+      ...item,
+      time: require("moment")(item.time24, "HH:mm:ss").format("hh:mm A"),
+    }));
+
     res.json(summary);
   } catch (error) {
     console.error("Error fetching product summary:", error);
     res.status(500).json({ message: "Server Error", error });
   }
 };
-
 
 const transferSubscriptionToOrder = async (req, res) => {
   try {

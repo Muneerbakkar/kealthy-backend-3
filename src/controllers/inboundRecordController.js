@@ -40,4 +40,31 @@ const getInboundRecords = async (req, res) => {
   }
 };
 
-module.exports = { getInboundRecords };
+const getInboundSummary = async (req, res) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.setHours(0, 0, 0, 0));
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(weekStart.getDate() - 6); // 7-day window including today
+
+    const monthStart = new Date(todayStart);
+    monthStart.setDate(1); // beginning of the month
+
+    const [dailyCount, weeklyCount, monthlyCount] = await Promise.all([
+      InboundRecord.countDocuments({ createdAt: { $gte: todayStart } }),
+      InboundRecord.countDocuments({ createdAt: { $gte: weekStart } }),
+      InboundRecord.countDocuments({ createdAt: { $gte: monthStart } }),
+    ]);
+
+    return res.status(200).json({
+      daily: dailyCount,
+      weekly: weeklyCount,
+      monthly: monthlyCount,
+    });
+  } catch (error) {
+    console.error("Error in getInboundSummary:", error);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+};
+
+module.exports = { getInboundRecords, getInboundSummary };
