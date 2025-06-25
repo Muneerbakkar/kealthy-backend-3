@@ -2,13 +2,20 @@ const Product = require("../models/Product");
 
 const createProduct = async (req, res) => {
   try {
-    const { productName, ean, netWeight, netWeightUnit, locations } = req.body;
+    const {
+      productName,
+      ean,
+      netWeight,
+      netWeightUnit,
+      perishable,
+      locations,
+    } = req.body;
 
     // If a product with the same name & EAN already exists, abort.
     const existing = await Product.findOne({ productName, ean });
     if (existing) {
       return res.status(400).json({
-        message: "A product with this name and EAN already exists."
+        message: "A product with this name and EAN already exists.",
       });
     }
 
@@ -32,7 +39,6 @@ const createProduct = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 
 const searchProducts = async (req, res) => {
   try {
@@ -63,10 +69,17 @@ const getProductById = async (req, res) => {
 
 const updateProduct = async (req, res) => {
   try {
-    const { productName, ean, locations, netWeight, netWeightUnit,perishable } = req.body;
+    const {
+      productName,
+      ean,
+      locations,
+      netWeight,
+      netWeightUnit,
+      perishable,
+    } = req.body;
     const product = await Product.findByIdAndUpdate(
       req.params.id,
-      { productName, ean, locations, netWeight, netWeightUnit,perishable},
+      { productName, ean, locations, netWeight, netWeightUnit, perishable },
       { new: true }
     );
     if (!product) return res.status(404).json({ message: "Product not found" });
@@ -79,7 +92,6 @@ const updateProduct = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 const deleteProduct = async (req, res) => {
   try {

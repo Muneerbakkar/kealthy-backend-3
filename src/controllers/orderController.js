@@ -423,31 +423,55 @@ const transferSubscriptionToOrder = async (req, res) => {
       return res.status(404).json({ message: "No subscriptions found." });
     }
 
-    const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
+    // ✅ Correctly parse date strings and force local "YYYY-MM-DD"
+    const extractDateOnly = (d) => {
+      if (!d) return "";
+      const date = new Date(d);
+      if (isNaN(date)) return "";
+
+      // Adjust timezone offset to get accurate local date
+      const offset = date.getTimezoneOffset() * 60000;
+      const localISO = new Date(date.getTime() - offset).toISOString();
+      return localISO.split("T")[0];
+    };
+
+    const todayStr = extractDateOnly(new Date()); // e.g. "2025-06-25"
 
     const tasks = Object.entries(subscriptions).map(async ([id, sub]) => {
-      const start = new Date(sub.startDate);
-      const end = new Date(sub.endDate);
-      const todayDate = new Date(todayStr);
+      const startStr = extractDateOnly(sub.startDate);
+      const endStr = extractDateOnly(sub.endDate);
 
-      if (todayDate >= start && todayDate <= end) {
+      if (!startStr || !endStr) {
+        console.warn(
+          `⏭️ Skipping subscription ${id} due to invalid date format`
+        );
+        return;
+      }
+
+      // ✅ Only move orders between start and end date (inclusive)
+      if (todayStr >= startStr && todayStr <= endStr) {
+        const isEndDate = todayStr === endStr;
         const orderId = Date.now().toString();
 
+        // Get number of days from planTitle (e.g. "30-Day Plan")
         const match = sub.planTitle?.match(/^(\d+)-Day/);
         const numberOfDays = match ? parseInt(match[1]) : 1;
 
+        // Calculate per-day amount
         const perDayAmount = sub.totalAmountToPay
           ? Math.round(sub.totalAmountToPay / numberOfDays)
           : 0;
 
-        const deliveryFee = sub.deliveryFee || 0;
-        const handlingFee = 5;
-        const totalToPay = perDayAmount + deliveryFee + handlingFee;
+        const deliveryFee = isEndDate ? 0 : sub.deliveryFee || 0;
+        const handlingFee = isEndDate ? 0 : 5;
+        const totalToPay = isEndDate
+          ? 0
+          : perDayAmount + deliveryFee + handlingFee;
 
-        // ✅ Clean subscription quantity: remove non-digits and convert to int
-        const rawQty = sub.subscriptionQty || "1";
-        const cleanQty = parseInt(rawQty.replace(/[^\d]/g, "")) || 1;
+        // Parse quantity safely
+        const rawQty = sub.subscriptionQty ?? "1";
+        const rawQtyStr = String(rawQty);
+        const cleanQty = parseInt(rawQtyStr.replace(/[^\d]/g, "")) || 1;
 
         const order = {
           DA: sub.DA || "Waiting",
@@ -455,7 +479,7 @@ const transferSubscriptionToOrder = async (req, res) => {
           Name: sub.Name || "",
           assignedto: sub.assignedto || "NotAssigned",
           cookinginstrcutions: "Don't send cutleries, tissues, straws, etc.",
-          createdAt: today.toISOString(),
+          createdAt: new Date().toISOString(),
           deliveryFee,
           handlingFee,
           deliveryInstructions: sub.deliveryInstructions || "",
@@ -466,8 +490,8 @@ const transferSubscriptionToOrder = async (req, res) => {
           orderItems: [
             {
               item_name: sub.productName,
-              item_quantity: cleanQty, // ✅ Cleaned & parsed quantity
-              item_price: perDayAmount,
+              item_quantity: cleanQty,
+              item_price: isEndDate ? 0 : perDayAmount,
               item_ean: sub.item_ean || "",
             },
           ],
@@ -477,19 +501,30 @@ const transferSubscriptionToOrder = async (req, res) => {
           selectedLatitude: sub.selectedLatitude || "",
           selectedLongitude: sub.selectedLongitude || "",
           selectedRoad: sub.selectedRoad || "",
-          selectedSlot: `${today.toDateString()}, ${sub.selectedSlot || ""}`,
+          selectedSlot: `${new Date().toDateString()}, ${
+            sub.selectedSlot || ""
+          }`,
           selectedType: sub.selectedType || "Home",
           status: "Order Placed",
           totalAmountToPay: totalToPay,
-          type: "Normal",
+          type: "Subscription",
         };
 
         await db.ref(`orders/${orderId}`).set(order);
-        console.log(`✅ Order created for subscription: ${id}`);
+        console.log(
+          `✅ Order created for subscription ${id}${
+            isEndDate ? " (FREE on endDate)" : ""
+          }`
+        );
+      } else {
+        console.log(
+          `⏭️ Skipping subscription ${id} — not active today (${todayStr})`
+        );
       }
     });
 
     await Promise.all(tasks);
+
     return res
       .status(200)
       .json({ message: "Orders transferred successfully." });
