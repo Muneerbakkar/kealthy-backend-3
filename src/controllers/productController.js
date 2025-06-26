@@ -12,10 +12,10 @@ const createProduct = async (req, res) => {
     } = req.body;
 
     // If a product with the same name & EAN already exists, abort.
-    const existing = await Product.findOne({ productName, ean });
+    const existing = await Product.findOne({ ean });
     if (existing) {
       return res.status(400).json({
-        message: "A product with this name and EAN already exists.",
+        message: "A product with this EAN already exists.",
       });
     }
 

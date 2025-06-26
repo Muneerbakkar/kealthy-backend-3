@@ -7,12 +7,14 @@ const db = require("../config/firebase");
  * If startDate/endDate ("DD-MM-YYYY") are provided in query, use them;
  * otherwise default to current ISO week clipped to current month.
  */
+// Build match stage based on date range
 const buildDateMatchStage = (startDate, endDate) => {
   let start, end;
 
   if (startDate && endDate) {
-    start = moment(startDate, "DD-MM-YYYY").startOf("day").toDate();
-    end = moment(endDate, "DD-MM-YYYY").endOf("day").toDate();
+    const formats = ["DD-MM-YYYY", "D-M-YYYY"];
+    start = moment(startDate, formats, true).startOf("day").toDate();
+    end = moment(endDate, formats, true).endOf("day").toDate();
   } else {
     const weekStart = moment().startOf("isoWeek");
     const weekEnd = moment().endOf("isoWeek");
@@ -292,6 +294,7 @@ const getTopOrderTimes = async (req, res) => {
   }
 };
 
+// Controller function
 const getProductSummary = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -301,49 +304,45 @@ const getProductSummary = async (req, res) => {
       dateMatchStage,
 
       {
+        $unwind: "$orderItems",
+      },
+
+      {
         $addFields: {
-          time24: {
-            $dateToString: {
-              format: "%H:%M:%S",
-              date: "$createdAt",
-              timezone: "Asia/Kolkata",
-            },
+          ean: {
+            $ifNull: ["$orderItems.item_EAN", "$orderItems.item_ean"],
           },
-        },
-      },
-
-      {
-        $project: {
-          orderId: 1,
-          orderItems: 1,
-          Name: 1,
-          totalAmountToPay: 1,
-          date: 1,
-          time24: 1,
-          ReceivedCOD: 1,
-        },
-      },
-
-      { $unwind: "$orderItems" },
-
-      {
-        $addFields: {
-          ean: { $ifNull: ["$orderItems.item_EAN", "$orderItems.item_ean"] },
-        },
-      },
-
-      {
-        $project: {
-          orderId: 1,
-          Name: 1,
           item_name: "$orderItems.item_name",
           item_price: "$orderItems.item_price",
           item_quantity: "$orderItems.item_quantity",
-          ean: 1,
-          date: 1,
-          time24: 1,
-          ReceivedCOD: 1,
-          totalAmountToPay: 1,
+          orderId: "$orderId",
+        },
+      },
+
+      {
+        $group: {
+          _id: {
+            orderId: "$orderId",
+            ean: "$ean",
+          },
+          Name: { $first: "$Name" },
+          date: { $first: "$date" },
+          time24: {
+            $first: {
+              $dateToString: {
+                format: "%H:%M:%S",
+                date: "$createdAt",
+                timezone: "Asia/Kolkata",
+              },
+            },
+          },
+          createdAt: { $first: "$createdAt" },
+          item_name: { $first: "$item_name" },
+          item_price: { $first: "$item_price" },
+          item_quantity: { $sum: "$item_quantity" },
+          totalAmountToPay: { $first: "$totalAmountToPay" },
+          ReceivedCOD: { $first: "$ReceivedCOD" },
+          ean: { $first: "$ean" },
         },
       },
 
@@ -396,15 +395,16 @@ const getProductSummary = async (req, res) => {
       },
       { $project: { prod: 0 } },
 
-      { $sort: { date: 1, time24: 1 } },
+      {
+        $sort: { date: 1, time24: 1 },
+      },
     ];
 
     const rawSummary = await Order.aggregate(pipeline);
 
-    // Convert 24hr time to 12hr time in Node.js
     const summary = rawSummary.map((item) => ({
       ...item,
-      time: require("moment")(item.time24, "HH:mm:ss").format("hh:mm A"),
+      time: moment(item.time24, "HH:mm:ss").format("hh:mm A"),
     }));
 
     res.json(summary);
@@ -463,7 +463,7 @@ const transferSubscriptionToOrder = async (req, res) => {
           : 0;
 
         const deliveryFee = isEndDate ? 0 : sub.deliveryFee || 0;
-        const handlingFee = isEndDate ? 0 : 5;
+        const handlingFee = isEndDate ? 0 : 0;
         const totalToPay = isEndDate
           ? 0
           : perDayAmount + deliveryFee + handlingFee;
@@ -491,7 +491,7 @@ const transferSubscriptionToOrder = async (req, res) => {
             {
               item_name: sub.productName,
               item_quantity: cleanQty,
-              item_price: isEndDate ? 0 : perDayAmount,
+              item_price: isEndDate ? 0 : 120,
               item_ean: sub.item_ean || "",
             },
           ],
@@ -506,7 +506,7 @@ const transferSubscriptionToOrder = async (req, res) => {
           }`,
           selectedType: sub.selectedType || "Home",
           status: "Order Placed",
-          totalAmountToPay: totalToPay,
+          totalAmountToPay: 120,
           type: "Subscription",
         };
 
