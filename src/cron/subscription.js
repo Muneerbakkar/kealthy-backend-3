@@ -5,7 +5,7 @@ const {
 
 // 🧪 Run every minute (for testing)
 const startSubscriptionCron = () => {
-  cron.schedule("0 7 * * *", () => {
+  cron.schedule("30 1 * * *", () => {
     // cron.schedule("* * * * *", () => {
     // cron.schedule("*/10 * * * *", () => {
     console.log("🔄 Cron running every minute (TEST mode)...");
