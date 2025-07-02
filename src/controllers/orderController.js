@@ -326,6 +326,7 @@ const getProductSummary = async (req, res) => {
             ean: "$ean",
           },
           Name: { $first: "$Name" },
+          phoneNumber: { $first: "$phoneNumber" },
           date: { $first: "$date" },
           time24: {
             $first: {
@@ -401,6 +402,7 @@ const getProductSummary = async (req, res) => {
           item_price: "$_id.item_price",
           item_quantity: 1,
           Name: 1,
+          phoneNumber: 1,
           date: 1,
           time24: 1,
           createdAt: 1,
