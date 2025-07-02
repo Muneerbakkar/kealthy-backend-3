@@ -303,9 +303,7 @@ const getProductSummary = async (req, res) => {
     const pipeline = [
       dateMatchStage,
 
-      {
-        $unwind: "$orderItems",
-      },
+      { $unwind: "$orderItems" },
 
       {
         $addFields: {
@@ -323,6 +321,8 @@ const getProductSummary = async (req, res) => {
         $group: {
           _id: {
             orderId: "$orderId",
+            item_name: "$item_name",
+            item_price: "$item_price",
             ean: "$ean",
           },
           Name: { $first: "$Name" },
@@ -337,8 +337,6 @@ const getProductSummary = async (req, res) => {
             },
           },
           createdAt: { $first: "$createdAt" },
-          item_name: { $first: "$item_name" },
-          item_price: { $first: "$item_price" },
           item_quantity: { $sum: "$item_quantity" },
           totalAmountToPay: { $first: "$totalAmountToPay" },
           ReceivedCOD: { $first: "$ReceivedCOD" },
@@ -396,8 +394,26 @@ const getProductSummary = async (req, res) => {
       { $project: { prod: 0 } },
 
       {
-        $sort: { date: 1, time24: 1 },
+        $project: {
+          _id: 0,
+          orderId: "$_id.orderId",
+          item_name: "$_id.item_name",
+          item_price: "$_id.item_price",
+          item_quantity: 1,
+          Name: 1,
+          date: 1,
+          time24: 1,
+          createdAt: 1,
+          totalAmountToPay: 1,
+          ReceivedCOD: 1,
+          ean: "$_id.ean",
+          stock: 1,
+          netWeight: 1,
+          netWeightUnit: 1,
+        },
       },
+
+      { $sort: { date: 1, time24: 1, item_name: 1 } },
     ];
 
     const rawSummary = await Order.aggregate(pipeline);
